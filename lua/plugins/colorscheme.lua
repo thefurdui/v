@@ -1,0 +1,11 @@
+return {
+  { "olimoris/onedarkpro.nvim" },
+
+  -- Configure LazyVim to load gruvbox
+  {
+    "LazyVim/LazyVim",
+    opts = {
+      colorscheme = "onedark_vivid",
+    },
+  },
+}
