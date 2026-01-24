@@ -1,0 +1,11 @@
+# ~/.editorconfig
+
+# Fallback defaults for all files
+[*]
+indent_style = space
+indent_size = 2
+
+# Specific global override for KDL
+[*.kdl]
+indent_style = space
+indent_size = 4
