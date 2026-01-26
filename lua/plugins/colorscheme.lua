@@ -1,5 +1,5 @@
 return {
-  { "olimoris/onedarkpro.nvim" },
+  { "olimorris/onedarkpro.nvim" },
 
   -- Configure LazyVim to load gruvbox
   {
