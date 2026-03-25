@@ -6,7 +6,9 @@ return {
   },
   cmd = "CodeDiff",
   opts = {
-    active_diff_algorithm = "myers", -- or "histogram"
+    diff = {
+      layout = "inline",
+    },
   },
   keys = {
     { "<leader>gd", "<cmd>CodeDiff<cr>", desc = "CodeDiff" },
