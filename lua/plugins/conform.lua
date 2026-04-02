@@ -13,6 +13,7 @@ return {
         yaml = { "prettier" },
         markdown = { "prettier" },
         kdl = { "kdlfmt" },
+        php = { "php_cs_fixer" },
       },
       formatters = {
         prettier = {
@@ -47,6 +48,15 @@ return {
             -- If a local config IS found, return empty (Prettier uses the local one)
             return {}
           end,
+        },
+        php_cs_fixer = {
+          -- Replace prepend_args with a full args override
+          args = {
+            "fix",
+            "--using-cache=no",
+            "--quiet",
+            "$FILENAME",
+          },
         },
       },
     },
