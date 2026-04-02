@@ -9,3 +9,6 @@ vim.opt.langmap = "ФИСВУАПРШОЛДЬТЩЗЙКЫЕГМЦЧНЯ;ABCDEFGH
 
 -- Ensure that mapped characters trigger your custom keybinds
 vim.opt.langremap = true
+
+-- Remove hyphen from iskeyword so w and b treat it as a word boundary
+vim.opt.iskeyword:remove("-")
