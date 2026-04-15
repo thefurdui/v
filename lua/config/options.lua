@@ -12,3 +12,6 @@ vim.opt.langremap = true
 
 -- Remove hyphen from iskeyword so w and b treat it as a word boundary
 vim.opt.iskeyword:remove("-")
+
+-- Enable reading .nvim.lua files in the current directory
+vim.o.exrc = true
