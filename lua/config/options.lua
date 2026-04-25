@@ -15,3 +15,6 @@ vim.opt.iskeyword:remove("-")
 
 -- Enable reading .nvim.lua files in the current directory
 vim.o.exrc = true
+
+-- Disable appending layzgit config
+vim.g.lazygit_config = false

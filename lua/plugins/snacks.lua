@@ -35,11 +35,25 @@ return {
       opts.quickfile = { enabled = true }
       opts.scroll = { enabled = true }
       opts.statuscolumn = { enabled = true }
+      opts.lazygit = opts.lazygit or {}
+      opts.lazygit.configure = false
       opts.words = { enabled = true }
     end,
     keys = {
-      { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification History" },
-      { "<leader>un", function() Snacks.notifier.hide() end, desc = "Dismiss All Notifications" },
+      {
+        "<leader>n",
+        function()
+          Snacks.notifier.show_history()
+        end,
+        desc = "Notification History",
+      },
+      {
+        "<leader>un",
+        function()
+          Snacks.notifier.hide()
+        end,
+        desc = "Dismiss All Notifications",
+      },
     },
   },
 }
