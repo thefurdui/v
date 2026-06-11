@@ -1,1 +1,32 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Neovim specific files
+*~
+*.swp
+*.swo
+*.swn
+*.bak
+*.un~
+Session.vim
+.netrwhist
 .nvimlog
+
+# Node/NPM (from installing global formatters/plugins)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# LSP and local settings
+.neoconf.json
+.vscode/
+
+# Ignore any random text or log files you might drop in here
+*.log
