@@ -29,6 +29,13 @@ local function setup_link_status_highlights()
       return nil
     end
 
+    -- Image/audio/etc. embeds are not notes; link.resolve_link_path has a bug
+    -- for attachments (calls a nil M.resolve_attachment_path).
+    local attachment = require("obsidian.attachment")
+    if attachment.is_attachment_path(target) then
+      return nil
+    end
+
     local link = require("obsidian.link")
     if link.resolve_link_path(target) then
       return nil

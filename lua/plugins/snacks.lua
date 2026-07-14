@@ -41,6 +41,21 @@ return {
       opts.explorer = vim.tbl_deep_extend("force", opts.explorer or {}, {
         replace_netrw = false,
       })
+
+      -- Inline images in vault markdown (obsidian.nvim + Kitty graphics terminal)
+      opts.image = vim.tbl_deep_extend("force", opts.image or {}, {
+        enabled = true,
+        doc = {
+          enabled = true,
+          inline = true,
+        },
+        resolve = function(path, src)
+          local ok, api = pcall(require, "obsidian.api")
+          if ok and api.path_is_note(path) then
+            return api.resolve_attachment_path(src)
+          end
+        end,
+      })
     end,
     keys = {
       {
