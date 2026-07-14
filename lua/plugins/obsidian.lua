@@ -215,6 +215,10 @@ return {
       new_notes_location = "current_dir",
       open_notes_in = "current",
 
+      attachments = {
+        folder = "./attachments",
+      },
+
       link = {
         style = "wiki",
         format = "shortest",
