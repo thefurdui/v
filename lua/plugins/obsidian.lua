@@ -83,7 +83,7 @@ local function setup_link_status_highlights()
     pending[buf] = vim.defer_fn(function()
       pending[buf] = nil
       update(buf)
-    end, 300)
+    end, 500)
   end
 
   vim.api.nvim_create_autocmd("User", {
@@ -92,7 +92,9 @@ local function setup_link_status_highlights()
     callback = function()
       local buf = vim.api.nvim_get_current_buf()
       update(buf)
-      vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "InsertLeave" }, {
+      -- TextChanged is enough (fires when leaving insert after edits).
+      -- InsertLeave re-ran ripgrep per wiki link on every Esc — noticeable lag.
+      vim.api.nvim_create_autocmd("TextChanged", {
         group = group,
         buffer = buf,
         callback = function()
@@ -284,7 +286,7 @@ return {
         enable = true,
         update_debounce = 200,
         max_file_length = 5000,
-        bullets = { char = "•", hl_group = "ObsidianBullet" },
+        bullets = vim.NIL,
         external_link_icon = { char = "󰏌", hl_group = "ObsidianExtLinkIcon" },
         reference_text = { hl_group = "ObsidianRefText" },
         highlight_text = { hl_group = "ObsidianHighlightText" },

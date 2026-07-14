@@ -37,7 +37,18 @@ return {
       opts.statuscolumn = { enabled = true }
       opts.lazygit = opts.lazygit or {}
       opts.lazygit.configure = false
-      opts.words = { enabled = true }
+      opts.words = vim.tbl_deep_extend("force", opts.words or {}, {
+        filter = function(buf)
+          if vim.g.snacks_words == false or vim.b[buf].snacks_words == false then
+            return false
+          end
+          local ft = vim.bo[buf].filetype
+          if ft == "markdown" or ft == "markdown.mdx" or vim.b[buf].obsidian_buffer then
+            return false
+          end
+          return true
+        end,
+      })
       opts.explorer = vim.tbl_deep_extend("force", opts.explorer or {}, {
         replace_netrw = false,
       })
