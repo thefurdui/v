@@ -38,6 +38,9 @@ return {
       opts.lazygit = opts.lazygit or {}
       opts.lazygit.configure = false
       opts.words = { enabled = true }
+      opts.explorer = vim.tbl_deep_extend("force", opts.explorer or {}, {
+        replace_netrw = false,
+      })
     end,
     keys = {
       {

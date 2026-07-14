@@ -4,6 +4,10 @@ return {
     "nvim-tree/nvim-tree.lua",
     dependencies = { "nvim-tree/nvim-web-devicons" },
     opts = {
+      hijack_directories = {
+        enable = true,
+        auto_open = false,
+      },
       filters = {
         dotfiles = false,
         git_ignored = false,
@@ -77,6 +81,7 @@ return {
       explorer = {
         hidden = true,
         ignored = true,
+        replace_netrw = false,
       },
     },
   },
