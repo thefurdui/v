@@ -11,15 +11,106 @@ end
 
 local LINK_STATUS_NS = vim.api.nvim_create_namespace("obsidian_link_status")
 
---- Dim unresolved / ambiguous wiki links (Obsidian-style hints, not LSP errors).
+--- Dim unresolved wiki links (Obsidian-style hints, not LSP errors).
+--- Ripgrep per link on BufEnter blocks the UI; updates are debounced and cached.
 local function setup_link_status_highlights()
   vim.api.nvim_set_hl(0, "ObsidianUnresolvedLink", { fg = "#565f89", undercurl = true, sp = "#565f89" })
   vim.api.nvim_set_hl(0, "ObsidianAmbiguousLink", { fg = "#e0af68", undercurl = true, sp = "#e0af68" })
 
   local group = vim.api.nvim_create_augroup("ObsidianLinkStatus", { clear = true })
-  local pending = {}
+  local pending_enter = {}
+  local pending_edit = {}
+  local textchanged_registered = {}
+  local link_cache = {}
+  local RESOLVED = {}
 
-  local function classify_ref(ref)
+  local function ref_highlight_range(ref)
+    local start_col, end_col = ref.range.start_col, ref.range.end_col
+    if ref.kind == "wiki" then
+      start_col = start_col + (ref.embed and 3 or 2)
+      end_col = end_col - 2
+      if start_col >= end_col then
+        return nil
+      end
+    end
+    return start_col, end_col
+  end
+
+  local function link_status(target, buf)
+    local Path = require("obsidian.path")
+    local util = require("obsidian.util")
+    local attachment = require("obsidian.attachment")
+
+    target = util.strip_block_links(util.strip_anchor_links(target))
+    if target == "" then
+      return RESOLVED
+    end
+
+    if attachment.is_attachment_path(target) then
+      return RESOLVED
+    end
+
+    local fname = target
+    if not vim.endswith(fname:lower(), ".md") and not vim.endswith(fname:lower(), ".base") then
+      fname = fname .. ".md"
+    end
+
+    local note_path = vim.api.nvim_buf_get_name(buf)
+    local current_dir = note_path ~= "" and Path.new(vim.fs.dirname(note_path)) or nil
+
+    local candidates = {}
+    local seen = {}
+    local function add(path)
+      if not path then
+        return
+      end
+      local key = tostring(path:resolve())
+      if seen[key] then
+        return
+      end
+      seen[key] = true
+      candidates[#candidates + 1] = path:resolve()
+    end
+
+    if Path.new(target):is_absolute() then
+      add(Path.new(target))
+    else
+      if current_dir then
+        add(current_dir / fname)
+      end
+      add(Obsidian.dir / fname)
+      if Obsidian.opts.notes_subdir ~= nil then
+        add(Obsidian.dir / Obsidian.opts.notes_subdir / fname)
+      end
+      if Obsidian.opts.daily_notes.folder ~= nil then
+        add(Obsidian.dir / Obsidian.opts.daily_notes.folder / fname)
+      end
+    end
+
+    local file_hits = 0
+    for _, candidate in ipairs(candidates) do
+      if candidate:is_file() then
+        file_hits = file_hits + 1
+      end
+    end
+    if file_hits == 1 then
+      return RESOLVED
+    end
+    if file_hits > 1 then
+      return "ObsidianAmbiguousLink"
+    end
+
+    local notes = require("obsidian.search").resolve_note(target, { timeout = 800 })
+    if #notes == 0 then
+      return "ObsidianUnresolvedLink"
+    end
+    if #notes > 1 then
+      return "ObsidianAmbiguousLink"
+    end
+    return RESOLVED
+  end
+
+  local function classify_ref(ref, buf)
     if ref.kind == "footnote" or ref.kind == "markdown" then
       return nil
     end
@@ -29,93 +120,111 @@ local function setup_link_status_highlights()
       return nil
     end
 
-    -- Image/audio/etc. embeds are not notes; link.resolve_link_path has a bug
-    -- for attachments (calls a nil M.resolve_attachment_path).
-    local attachment = require("obsidian.attachment")
-    if attachment.is_attachment_path(target) then
+    local cached = link_cache[target]
+    if cached == RESOLVED then
+      return nil
+    end
+    if type(cached) == "string" then
+      return cached
+    end
+
+    local status = link_status(target, buf)
+    if status == RESOLVED then
+      link_cache[target] = RESOLVED
       return nil
     end
 
-    local link = require("obsidian.link")
-    if link.resolve_link_path(target) then
-      return nil
-    end
-
-    local notes = require("obsidian.search").find_notes(target, { timeout = 500 })
-    if #notes == 0 then
-      return "ObsidianUnresolvedLink"
-    end
-    if #notes > 1 then
-      return "ObsidianAmbiguousLink"
-    end
-    return nil
+    link_cache[target] = status
+    return status
   end
 
   local function update(buf)
+    if not Obsidian or not Obsidian.dir then
+      return
+    end
     if not vim.api.nvim_buf_is_valid(buf) or not vim.b[buf].obsidian_buffer then
       return
     end
+
+    link_cache = {}
 
     vim.api.nvim_buf_clear_namespace(buf, LINK_STATUS_NS, 0, -1)
 
     local parse_refs = require("obsidian.parse.refs")
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 
-    for lnum, line in ipairs(lines) do
-      for _, ref in ipairs(parse_refs.extract(line)) do
-        local hl = classify_ref(ref)
-        if hl then
-          vim.api.nvim_buf_set_extmark(buf, LINK_STATUS_NS, lnum - 1, ref.range.start_col, {
-            end_row = lnum - 1,
-            end_col = ref.range.end_col,
-            hl_group = hl,
-            priority = 110,
-          })
+    vim.api.nvim_buf_call(buf, function()
+      for lnum, line in ipairs(lines) do
+        for _, ref in ipairs(parse_refs.extract(line)) do
+          local hl = classify_ref(ref, buf)
+          local start_col, end_col = ref_highlight_range(ref)
+          if hl and start_col then
+            vim.api.nvim_buf_set_extmark(buf, LINK_STATUS_NS, lnum - 1, start_col, {
+              end_row = lnum - 1,
+              end_col = end_col,
+              hl_group = hl,
+              priority = 200,
+            })
+          end
         end
       end
-    end
+    end)
   end
 
-  local function debounced_update(buf)
+  local function debounced_update(buf, delay, kind)
+    local pending = kind == "enter" and pending_enter or pending_edit
     if pending[buf] then
       pending[buf]:close()
     end
     pending[buf] = vim.defer_fn(function()
       pending[buf] = nil
       update(buf)
-    end, 500)
+    end, delay or 500)
   end
 
-  vim.api.nvim_create_autocmd("User", {
-    group = group,
-    pattern = "ObsidianNoteEnter",
-    callback = function()
-      local buf = vim.api.nvim_get_current_buf()
-      update(buf)
-      -- TextChanged is enough (fires when leaving insert after edits).
-      -- InsertLeave re-ran ripgrep per wiki link on every Esc — noticeable lag.
-      vim.api.nvim_create_autocmd("TextChanged", {
-        group = group,
-        buffer = buf,
-        callback = function()
-          debounced_update(buf)
-        end,
-      })
-    end,
-  })
+  local function clear_pending(buf)
+    if pending_enter[buf] then
+      pending_enter[buf]:close()
+      pending_enter[buf] = nil
+    end
+    if pending_edit[buf] then
+      pending_edit[buf]:close()
+      pending_edit[buf] = nil
+    end
+  end
 
-  vim.api.nvim_create_autocmd("User", {
-    group = group,
-    pattern = "ObsidianNoteLeave",
-    callback = function()
-      local buf = vim.api.nvim_get_current_buf()
-      if pending[buf] then
-        pending[buf]:close()
-        pending[buf] = nil
-      end
-      vim.api.nvim_buf_clear_namespace(buf, LINK_STATUS_NS, 0, -1)
-    end,
-  })
+  local function on_note_enter(buf)
+    if not vim.api.nvim_buf_is_valid(buf) or not vim.b[buf].obsidian_buffer then
+      return
+    end
+
+    -- Separate timer so LSP/UI TextChanged bursts cannot cancel the first pass.
+    debounced_update(buf, 150, "enter")
+
+    if textchanged_registered[buf] then
+      return
+    end
+    textchanged_registered[buf] = true
+
+    vim.api.nvim_create_autocmd("TextChanged", {
+      group = group,
+      buffer = buf,
+      callback = function()
+        debounced_update(buf, 500, "edit")
+      end,
+    })
+    vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+      group = group,
+      buffer = buf,
+      callback = function()
+        clear_pending(buf)
+        textchanged_registered[buf] = nil
+        vim.api.nvim_buf_clear_namespace(buf, LINK_STATUS_NS, 0, -1)
+      end,
+    })
+  end
+
+  return on_note_enter
 end
 
 --- Buffer-local keymaps for vault notes. Called after obsidian-ls attaches so we
@@ -171,6 +280,18 @@ local function setup_vault_keymaps(buf)
   map("n", "<leader>oq", "<cmd>Obsidian quick_switch<cr>", "Quick switch note")
   map("n", "<leader>os", "<cmd>Obsidian search<cr>", "Search vault")
   map("n", "<leader>or", "<cmd>Obsidian rename<cr>", "Rename note")
+  map("n", "<leader>oD", function()
+    local api = require("obsidian.api")
+    local note = api.current_note()
+    if not note then
+      return
+    end
+    if api.confirm('Delete "' .. note:display_name() .. '"?') ~= "Yes" then
+      return
+    end
+    vim.fs.rm(tostring(note.path))
+    vim.cmd.bdelete()
+  end, "Delete note")
   map("n", "<leader>ot", "<cmd>Obsidian toc<cr>", "Table of contents")
   map("n", "<leader>oT", "<cmd>Obsidian tags<cr>", "Search tags")
   map("n", "<leader>ow", "<cmd>Obsidian workspace<cr>", "Switch workspace")
@@ -190,12 +311,16 @@ local function setup_vault_keymaps(buf)
 end
 
 local function bootstrap_vault_buffers()
-  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == "" then
-      local name = vim.api.nvim_buf_get_name(buf)
-      if in_vault(name) and (vim.bo[buf].filetype == "markdown" or vim.bo[buf].filetype == "markdown.mdx") then
-        vim.api.nvim_exec_autocmds("BufEnter", { buffer = buf })
-      end
+  -- Only replay BufEnter for the current buffer. Re-firing every open vault
+  -- buffer multiplied link-status ripgrep work and froze startup.
+  local buf = vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "" then
+    return
+  end
+  local name = vim.api.nvim_buf_get_name(buf)
+  if in_vault(name) and (vim.bo[buf].filetype == "markdown" or vim.bo[buf].filetype == "markdown.mdx") then
+    if not vim.b[buf].obsidian_buffer then
+      vim.api.nvim_exec_autocmds("BufEnter", { buffer = buf })
     end
   end
 end
@@ -224,8 +349,11 @@ return {
 
       notes_subdir = nil,
       new_notes_location = "current_dir",
-      -- Slug from title (e.g. "My Idea" → my-idea.md)
-      note_id_func = require("obsidian.builtin").title_id,
+      -- Slug from title (e.g. "My Idea" → my-idea.md). Deferred require: this
+      -- file is evaluated before lazy-loaded obsidian.nvim is on package.path.
+      note_id_func = function(title, dir)
+        return require("obsidian.builtin").title_id(title, dir)
+      end,
       open_notes_in = "current",
 
       attachments = {
@@ -268,6 +396,8 @@ return {
 
       daily_notes = {
         enabled = true,
+        folder = "journaling/daily",
+        template = "day",
         workdays_only = false,
       },
 
@@ -356,7 +486,7 @@ return {
 
       callbacks = {
         post_setup = function()
-          setup_link_status_highlights()
+          local on_note_enter = setup_link_status_highlights()
 
           -- Plain `- [ ]` / `- [x]` text: match checkbox lines so bullet conceal
           -- does not apply, but do not replace them with icons (set in post_setup
@@ -366,6 +496,14 @@ return {
             plain[char] = {}
           end
           Obsidian.opts.ui.checkboxes = plain
+
+          local prev_enter = Obsidian.opts.callbacks.enter_note
+          Obsidian.opts.callbacks.enter_note = function(note)
+            if prev_enter then
+              prev_enter(note)
+            end
+            on_note_enter(vim.api.nvim_get_current_buf())
+          end
         end,
       },
     },
