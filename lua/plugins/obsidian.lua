@@ -156,7 +156,15 @@ local function setup_vault_keymaps(buf)
   map("n", "<leader>of", "<cmd>Obsidian follow_link<cr>", "Follow link")
   map("n", "<leader>ol", "<cmd>Obsidian links<cr>", "Links in this note")
   map("n", "<leader>oo", "<cmd>Obsidian open<cr>", "Open in Obsidian app")
-  map("n", "<leader>on", "<cmd>Obsidian new<cr>", "New note")
+  map("n", "<leader>on", function()
+    local id = require("obsidian.api").input("Note title: ")
+    if not id or vim.trim(id) == "" then
+      return
+    end
+    actions.new(vim.trim(id), function(note)
+      note:open({ sync = true })
+    end)
+  end, "New note")
   map("n", "<leader>oN", "<cmd>Obsidian new_from_template<cr>", "New note from template")
   map("n", "<leader>om", "<cmd>Obsidian template<cr>", "Insert template into note")
   map("n", "<leader>ou", "<cmd>Obsidian unique_note<cr>", "New unique (timestamp) note")
@@ -216,6 +224,8 @@ return {
 
       notes_subdir = nil,
       new_notes_location = "current_dir",
+      -- Slug from title (e.g. "My Idea" → my-idea.md)
+      note_id_func = require("obsidian.builtin").title_id,
       open_notes_in = "current",
 
       attachments = {
@@ -292,11 +302,8 @@ return {
             local lines = {}
             for i = 0, 6 do
               local t = start + i * 86400
-              lines[#lines + 1] = string.format(
-                "# %s [[%s]]",
-                util.format_date(t, "dddd"),
-                util.format_date(t, "YYYY-MM-DD")
-              )
+              lines[#lines + 1] =
+                string.format("# %s [[%s]]", util.format_date(t, "dddd"), util.format_date(t, "YYYY-MM-DD"))
               lines[#lines + 1] = ""
             end
             return table.concat(lines, "\n")
