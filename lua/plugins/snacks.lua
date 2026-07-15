@@ -53,7 +53,7 @@ return {
         replace_netrw = false,
       })
 
-      -- Inline images in vault markdown (obsidian.nvim + Kitty graphics terminal)
+      -- Inline images in vault markdown only (obsidian.nvim + Kitty graphics terminal)
       opts.image = vim.tbl_deep_extend("force", opts.image or {}, {
         enabled = true,
         doc = {
@@ -67,6 +67,23 @@ return {
           end
         end,
       })
+    end,
+    config = function(_, opts)
+      require("snacks").setup(opts)
+
+      local function markdown_buf(buf)
+        local ft = vim.bo[buf].filetype
+        return ft == "markdown" or ft == "markdown.mdx" or vim.b[buf].obsidian_buffer
+      end
+
+      local doc = require("snacks.image.doc")
+      local attach = doc.attach
+      function doc.attach(buf)
+        if not markdown_buf(buf) then
+          return
+        end
+        attach(buf)
+      end
     end,
     keys = {
       {
