@@ -158,6 +158,7 @@ local function setup_vault_keymaps(buf)
   map("n", "<leader>oo", "<cmd>Obsidian open<cr>", "Open in Obsidian app")
   map("n", "<leader>on", "<cmd>Obsidian new<cr>", "New note")
   map("n", "<leader>oN", "<cmd>Obsidian new_from_template<cr>", "New note from template")
+  map("n", "<leader>om", "<cmd>Obsidian template<cr>", "Insert template into note")
   map("n", "<leader>ou", "<cmd>Obsidian unique_note<cr>", "New unique (timestamp) note")
   map("n", "<leader>oq", "<cmd>Obsidian quick_switch<cr>", "Quick switch note")
   map("n", "<leader>os", "<cmd>Obsidian search<cr>", "Search vault")
@@ -262,6 +263,45 @@ return {
 
       templates = {
         enabled = true,
+        folder = "config/templates",
+        date_format = "YYYY-MM-DD",
+        time_format = "HH:mm",
+        substitutions = {
+          -- First word of note title → daily link (Dream template)
+          dream_day = function(ctx)
+            local title = ctx.partial_note and ctx.partial_note:display_name() or ""
+            return title:match("^(%S+)") or require("obsidian.util").format_date(os.time(), "YYYY-MM-DD")
+          end,
+          -- Seven weekday headers linking to daily notes (Week template)
+          week_days = function()
+            local api = require("obsidian.api")
+            local util = require("obsidian.util")
+            local now = os.date("*t")
+            local days_since_monday = (now.wday - 2 + 7) % 7
+            local monday = os.time(now) - days_since_monday * 86400
+            local default_monday = util.format_date(monday, "YYYY-MM-DD")
+            local input = api.input("Monday of this week (YYYY-MM-DD): ", { default = default_monday })
+            if not input or input == "" then
+              return ""
+            end
+            local parsed = util.parse_date(vim.trim(input), "YYYY-MM-DD")
+            if not parsed then
+              return ""
+            end
+            local start = os.time(parsed)
+            local lines = {}
+            for i = 0, 6 do
+              local t = start + i * 86400
+              lines[#lines + 1] = string.format(
+                "# %s [[%s]]",
+                util.format_date(t, "dddd"),
+                util.format_date(t, "YYYY-MM-DD")
+              )
+              lines[#lines + 1] = ""
+            end
+            return table.concat(lines, "\n")
+          end,
+        },
       },
 
       sync = {
