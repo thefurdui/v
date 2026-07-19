@@ -270,9 +270,18 @@ local function setup_vault_keymaps(buf)
     if not id or vim.trim(id) == "" then
       return
     end
-    actions.new(vim.trim(id), function(note)
-      note:open({ sync = true })
-    end)
+    local Note = require("obsidian.note")
+    local Path = require("obsidian.path")
+    local bufname = vim.api.nvim_buf_get_name(0)
+    local dir = bufname ~= "" and Path.new(vim.fs.dirname(bufname)) or Obsidian.dir
+    local note = Note.create({
+      id = vim.trim(id),
+      dir = dir,
+      scope = "manual",
+      template = Obsidian.opts.note.template,
+    })
+    note:write()
+    note:open({ sync = true })
   end, "New note")
   map("n", "<leader>oN", "<cmd>Obsidian new_from_template<cr>", "New note from template")
   map("n", "<leader>om", "<cmd>Obsidian template<cr>", "Insert template into note")
@@ -348,7 +357,8 @@ return {
       },
 
       notes_subdir = nil,
-      new_notes_location = "current_dir",
+      -- New notes from broken links go to vault root, not the current subdirectory.
+      new_notes_location = "notes_subdir",
       -- Slug from title (e.g. "My Idea" → my-idea.md). Deferred require: this
       -- file is evaluated before lazy-loaded obsidian.nvim is on package.path.
       note_id_func = function(title, dir)
