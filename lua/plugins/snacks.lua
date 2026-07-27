@@ -59,6 +59,14 @@ return {
         doc = {
           enabled = true,
           inline = true,
+          -- Cap decode size so a vault note full of photos cannot balloon RAM.
+          max_width = 80,
+          max_height = 40,
+        },
+        convert = {
+          magick = {
+            default = { "{src}[0]", "-scale", "1280x1280>" },
+          },
         },
         resolve = function(path, src)
           local ok, api = pcall(require, "obsidian.api")

@@ -3,9 +3,8 @@
 -- Add any additional options here
 vim.opt.cmdheight = 0
 
--- Russian JCUKEN → QWERTY (see lua/config/cyrillic.lua)
+-- Russian JCUKEN → QWERTY for Normal/Visual (chords via langmapper.nvim)
 require("config.cyrillic").apply_langmap()
-require("config.cyrillic").setup_autocmd()
 
 -- Remove hyphen from iskeyword so w and b treat it as a word boundary
 vim.opt.iskeyword:remove("-")

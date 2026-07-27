@@ -1,5 +1,8 @@
+-- LazyVim defaults to blink.cmp. Keeping nvim-cmp enabled alongside it
+-- doubles insert-mode maps and fights langmapper (freezes / map storms).
 return {
   "hrsh7th/nvim-cmp",
+  enabled = false,
   event = "InsertEnter", -- Only load the plugin when you start typing
   dependencies = {
     -- 1. Snippet Engine (Required by nvim-cmp)
